@@ -1,0 +1,9 @@
+# Local secrets and API keys
+config.local.php
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
