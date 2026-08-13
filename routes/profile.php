@@ -1,9 +1,8 @@
 <?php
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['user_id'])) { redirect('index.php?page=login'); exit; }
-
-$current_user_id = $_SESSION['user_id'];
+require_login();
+$current_user_id = (int)current_user()['id'];
 $profile_id = isset($_GET['id']) ? (int)$_GET['id'] : $current_user_id;
 $is_own_profile = ($profile_id === $current_user_id);
 
@@ -72,9 +71,7 @@ if ($is_own_profile && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['de
             $post_owner = $check_stmt->fetchColumn();
 
             if ($post_owner == $current_user_id) {
-                db()->prepare("DELETE FROM likes WHERE post_id = ?")->execute([$delete_post_id]);
-                db()->prepare("DELETE FROM comment WHERE post_id = ?")->execute([$delete_post_id]);
-                db()->prepare("DELETE FROM post WHERE id = ?")->execute([$delete_post_id]);
+                db()->prepare("UPDATE post SET deleted = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?")->execute([$delete_post_id, $current_user_id]);
                 $success_message = 'Post deleted successfully!';
             } else {
                 $error_message = 'You do not have permission to delete this post.';
@@ -92,7 +89,7 @@ if ($is_own_profile && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['up
         $firstname = sanitize_input($_POST['firstname'] ?? '', 100);
         $lastname = sanitize_input($_POST['lastname'] ?? '', 100);
         $phone = sanitize_input($_POST['phone'] ?? '', 20);
-        $picture = sanitize_input($_POST['picture'] ?? '', 500);
+        $picture = validate_image_url(sanitize_input($_POST['picture'] ?? '', 500));
         $bio = sanitize_input($_POST['bio'] ?? '', 1000);
 
         if (!empty($firstname) && !empty($lastname)) {
@@ -182,7 +179,7 @@ if ($is_own_profile && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['de
 }
 
 try {
-    $stmt = db()->prepare("SELECT * FROM post WHERE user_id = ? AND deleted IS NULL ORDER BY created DESC");
+    $stmt = db()->prepare("SELECT * FROM post WHERE user_id = ? AND status = 1 AND deleted IS NULL ORDER BY created DESC");
     $stmt->execute([$profile_id]);
     $user_posts = $stmt->fetchAll();
 } catch (PDOException $e) {

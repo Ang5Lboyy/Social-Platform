@@ -5,11 +5,13 @@ if (session_status() === PHP_SESSION_NONE) {
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!isset($_SESSION['user_id'])) {
+if (!current_user()) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
+
+$current_user_id = (int)current_user()['id'];
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -37,7 +39,7 @@ if ($post_id <= 0) {
 
 try {
     $stmt = db()->prepare("SELECT content FROM post WHERE id = ? AND user_id = ? AND deleted IS NULL");
-    $stmt->execute([$post_id, $_SESSION['user_id']]);
+    $stmt->execute([$post_id, $current_user_id]);
     $current_post = $stmt->fetch();
 } catch (PDOException $e) {
     error_log("Database error in generate_tags: " . $e->getMessage());
@@ -86,12 +88,13 @@ if ($gemini_result['content'] !== '') {
                 $merged_tags = trim($existing_tags_clean . ' ' . implode(' ', $unique_new));
                 
                 $update_stmt = db()->prepare("UPDATE post SET content = ? WHERE id = ? AND user_id = ?");
-                $update_stmt->execute([$merged_tags, $post_id, $_SESSION['user_id']]);
+                $update_stmt->execute([$merged_tags, $post_id, $current_user_id]);
             }
             
             echo json_encode(['tags' => $ai_tags]);
         } catch (PDOException $e) {
             error_log("Database error in generate_tags: " . $e->getMessage());
+            http_response_code(500);
             echo json_encode(['error' => 'Database error. Please try again.']);
         }
     } else {

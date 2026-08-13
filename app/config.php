@@ -1,5 +1,5 @@
 <?php
-return [
+$config = [
     'db' => [
         'host' => 'localhost',
         'name' => 'angel_barseghyan2',
@@ -7,5 +7,14 @@ return [
         'pass' => '',
         'charset' => 'utf8mb4',
     ],
-    'app_key' => '65498732165498765432165432165432165487',
 ];
+
+$local_config_path = __DIR__ . '/../config.local.php';
+if (file_exists($local_config_path)) {
+    $local = require $local_config_path;
+    if (is_array($local) && isset($local['db']) && is_array($local['db'])) {
+        $config['db'] = array_merge($config['db'], $local['db']);
+    }
+}
+
+return $config;

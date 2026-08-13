@@ -1,12 +1,9 @@
 <?php
 
 function redirect($url) {
-    $url = str_replace(["\r", "\n"], '', $url);
-    if (preg_match('#^https?://#i', $url)) {
-        $parsed = parse_url($url);
-        if (!$parsed || !isset($parsed['host'])) {
-            $url = 'index.php?page=feed';
-        }
+    $url = str_replace(["\r", "\n"], '', trim($url));
+    if ($url === '' || !preg_match('#^index\.php(?:\?|$)#', $url)) {
+        $url = 'index.php?page=feed';
     }
     header("Location: " . $url, true, 302);
     exit;
@@ -31,6 +28,7 @@ function current_user() {
 
 function require_login() {
     if (!current_user()) {
+        unset($_SESSION['user_id']);
         redirect('index.php?page=login');
     }
 }
@@ -93,9 +91,22 @@ function parse_post_content($post) {
 }
 
 function sanitize_ai_output($text) {
-    $text = strip_tags($text);
-    $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-    return $text;
+    return strip_tags(trim($text));
+}
+
+function validate_image_url($url) {
+    $url = trim($url);
+    if ($url === '') {
+        return '';
+    }
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return '';
+    }
+    $scheme = parse_url($url, PHP_URL_SCHEME);
+    if (!in_array(strtolower((string)$scheme), ['http', 'https'], true)) {
+        return '';
+    }
+    return $url;
 }
 
 function gemini_generate_content($prompt) {
@@ -118,8 +129,7 @@ function gemini_generate_content($prompt) {
 
     $url = 'https://generativelanguage.googleapis.com/v1beta/models/'
         . rawurlencode($model)
-        . ':generateContent?key='
-        . rawurlencode($api_key);
+        . ':generateContent';
     $payload = json_encode([
         'contents' => [[
             'parts' => [['text' => $prompt]],
@@ -136,7 +146,11 @@ function gemini_generate_content($prompt) {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'x-goog-api-key: ' . $api_key,
+        ],
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_CONNECTTIMEOUT => 10,
@@ -164,13 +178,25 @@ function gemini_generate_content($prompt) {
         error_log('Gemini API error (HTTP ' . $http_code . '): ' . $api_message);
 
         if ($http_code === 429) {
-            return ['content' => '', 'status' => 429, 'error' => 'Gemini request limit has been reached. Please try again in a minute.'];
+            return [
+                'content' => '',
+                'status' => 429,
+                'error' => 'Gemini quota exceeded. Wait 1–2 minutes and try again. Free tier allows ~15 requests/minute.',
+            ];
         }
         if ($http_code === 404) {
-            return ['content' => '', 'status' => 502, 'error' => 'The configured Gemini model is unavailable. Please contact the site administrator.'];
+            return [
+                'content' => '',
+                'status' => 502,
+                'error' => 'Model "' . $model . '" is unavailable. Set GEMINI_MODEL to gemini-3.5-flash or gemini-3.1-flash-lite in config.local.php.',
+            ];
         }
         if ($http_code === 401 || $http_code === 403) {
-            return ['content' => '', 'status' => 502, 'error' => 'Gemini authorization failed. Please contact the site administrator.'];
+            return [
+                'content' => '',
+                'status' => 502,
+                'error' => 'Invalid Gemini API key. Create one at https://aistudio.google.com/apikey (starts with AIzaSy).',
+            ];
         }
 
         return ['content' => '', 'status' => 502, 'error' => 'Gemini could not generate content. Please try again.'];

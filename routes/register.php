@@ -101,3 +101,5 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </form>
     <a href="index.php?page=login" class="auth-link">Already have an account? Login</a>
 </div>
+
+<?php require __DIR__ . '/../public/footer.php'; ?>

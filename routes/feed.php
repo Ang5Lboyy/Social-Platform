@@ -4,12 +4,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id'])) {
-    redirect('index.php?page=login');
-    exit;
-}
-
-$current_user_id = $_SESSION['user_id'];
+require_login();
+$current_user_id = (int)current_user()['id'];
 
 $posts_per_page = 10;
 $current_page = max(1, (int)($_GET['p'] ?? 1));
@@ -31,53 +27,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_post'])) {
     $use_ai = isset($_POST['use_ai']) && $_POST['use_ai'] == '1';
 
     if (!empty($image_url)) {
-        $image_url = filter_var($image_url, FILTER_VALIDATE_URL) ? $image_url : '';
+        $image_url = validate_image_url($image_url);
     }
 
-    if (!empty($user_input)) {
+    if (empty($user_input)) {
+        flash_set('danger', 'Post content cannot be empty.');
+        redirect('index.php?page=feed');
+    }
+
+    if ($use_ai) {
+        $preview = $_SESSION['ai_post_preview'] ?? null;
+        $preview_is_valid = is_array($preview)
+            && isset($preview['created_at'])
+            && $preview['created_at'] >= time() - 900;
+
+        if (!$preview_is_valid) {
+            flash_set('danger', 'Please generate an AI preview before publishing this post.');
+            redirect('index.php?page=feed');
+        }
+
+        $final_content = sanitize_ai_output($user_input);
+        unset($_SESSION['ai_post_preview']);
+    } else {
+        $final_content = $user_input;
+    }
+
+    $plain_title = strip_tags($final_content);
+    $title = mb_strlen($plain_title) > 50 ? mb_substr($plain_title, 0, 50) . '...' : $plain_title;
+    $is_ai_value = $use_ai ? 1 : 0;
+
+    try {
+        $stmt = db()->prepare("
+            INSERT INTO post (user_id, title, content, image_url, views, status, is_ai) 
+            VALUES (?, ?, ?, ?, 0, 1, ?)
+        ");
+        $stmt->execute([$current_user_id, $title, $final_content, $image_url ?: null, $is_ai_value]);
+
         if ($use_ai) {
-            $preview = $_SESSION['ai_post_preview'] ?? null;
-            $preview_is_valid = is_array($preview)
-                && isset($preview['created_at'])
-                && $preview['created_at'] >= time() - 900;
-
-            if (!$preview_is_valid) {
-                flash_set('danger', 'Please generate an AI preview before publishing this post.');
-                redirect('index.php?page=feed');
-            }
-
-            // The editor can change the generated preview; do not call Gemini a second time.
-            // The preview response is HTML-escaped before it reaches the editor.
-            // Decode once here so saving it does not double-escape characters such as &.
-            $final_content = sanitize_ai_output(html_entity_decode($user_input, ENT_QUOTES, 'UTF-8'));
-            unset($_SESSION['ai_post_preview']);
-        } 
-        else {
-            $final_content = $user_input;
+            flash_set('success', 'AI-generated post published successfully!');
+        } else {
+            flash_set('success', 'Post published successfully!');
         }
-        
-        $title = mb_substr(strip_tags($final_content), 0, 50) . '...';
-        $is_ai_value = $use_ai ? 1 : 0;
-        
-        try {
-            $stmt = db()->prepare("
-                INSERT INTO post (user_id, title, content, image_url, views, status, is_ai) 
-                VALUES (?, ?, ?, ?, 0, 1, ?)
-            ");
-            $stmt->execute([$current_user_id, $title, $final_content, $image_url ?: null, $is_ai_value]);
-            
-            if ($use_ai) {
-                flash_set('success', 'AI-generated post published successfully!');
-            } else {
-                flash_set('success', 'Post published successfully!');
-            }
-            redirect('index.php?page=feed');
-            exit;
-        } catch (PDOException $e) {
-            error_log("Error saving post: " . $e->getMessage());
-            flash_set('danger', 'Error saving post. Please try again.');
-            redirect('index.php?page=feed');
-        }
+        redirect('index.php?page=feed');
+        exit;
+    } catch (PDOException $e) {
+        error_log("Error saving post: " . $e->getMessage());
+        flash_set('danger', 'Error saving post. Please try again.');
+        redirect('index.php?page=feed');
     }
 }
 
@@ -124,6 +120,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_comment'])) {
 
     $post_id = (int)$_POST['post_id'];
     $comment_text = sanitize_input($_POST['comment_text'] ?? '', 2000);
+
+    if (empty($comment_text)) {
+        flash_set('danger', 'Comment cannot be empty.');
+        redirect('index.php?page=feed');
+    }
 
     if (!empty($comment_text)) {
         try {
@@ -291,6 +292,40 @@ require __DIR__ . '/../public/header.php';
     let pendingImageUrl = '';
     let pendingUseAi = false;
 
+    function isValidImageUrl(url) {
+        try {
+            const parsed = new URL(url);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function setPreviewContent(text, imageUrl) {
+        const previewEl = document.getElementById('previewText');
+        previewEl.textContent = '';
+
+        const lines = text.split('\n');
+        lines.forEach((line, index) => {
+            if (index > 0) {
+                previewEl.appendChild(document.createElement('br'));
+            }
+            previewEl.appendChild(document.createTextNode(line));
+        });
+
+        if (imageUrl && isValidImageUrl(imageUrl)) {
+            previewEl.appendChild(document.createElement('br'));
+            previewEl.appendChild(document.createElement('br'));
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = 'Preview Image';
+            img.style.maxWidth = '100%';
+            img.style.borderRadius = '8px';
+            img.style.marginTop = '10px';
+            previewEl.appendChild(img);
+        }
+    }
+
     document.getElementById('previewNormalBtn').addEventListener('click', function() {
         const content = document.querySelector('#normalPostForm textarea').value;
         const imageUrl = document.querySelector('#normalPostForm input[name="image_url"]').value;
@@ -304,11 +339,7 @@ require __DIR__ . '/../public/header.php';
         pendingImageUrl = imageUrl;
         pendingUseAi = false;
         
-        let previewHtml = content.replace(/\n/g, '<br>');
-        if (imageUrl) {
-            previewHtml += '<br><br><img src="' + imageUrl.replace(/"/g, '&quot;') + '" style="max-width: 100%; border-radius: 8px; margin-top: 10px;" alt="Preview Image">';
-        }
-        document.getElementById('previewText').innerHTML = previewHtml;
+        setPreviewContent(content, imageUrl);
         document.getElementById('editText').value = content;
         document.getElementById('editImageUrl').value = imageUrl;
         document.getElementById('previewModal').style.display = 'block';
@@ -391,11 +422,7 @@ document.getElementById('previewAiBtn').addEventListener('click', function() {
         })
         .then(data => {
             if (data.content) {
-                let previewHtml = data.content.replace(/\n/g, '<br>');
-                if (foundImageUrl) {
-                    previewHtml += '<br><br><img src="' + foundImageUrl.replace(/"/g, '&quot;') + '" style="max-width: 100%; border-radius: 8px; margin-top: 10px;" alt="AI Found Image">';
-                }
-                document.getElementById('previewText').innerHTML = previewHtml;
+                setPreviewContent(data.content, foundImageUrl);
                 document.getElementById('editText').value = data.content;
                 document.getElementById('editImageUrl').value = foundImageUrl;
                 pendingForm = 'ai';

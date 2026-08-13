@@ -66,7 +66,7 @@ CREATE TABLE `post` (
   `views` int(11) NOT NULL DEFAULT 0,
   `status` int(11) NOT NULL DEFAULT 1,
   `is_ai` tinyint(4) DEFAULT 0,
-  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated` timestamp NULL DEFAULT NULL,
   `deleted` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),

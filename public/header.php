@@ -22,7 +22,10 @@
             <a href="index.php?page=friends" class="nav-link">Friends</a>
             <a href="index.php?page=messages" class="nav-link">Messages</a>
             <a href="index.php?page=profile" class="nav-link">My Profile</a>
-            <a href="index.php?page=logout" class="nav-link logout-link">Logout</a>
+            <form action="index.php?page=logout" method="POST" class="logout-form">
+                <?= csrf_field() ?>
+                <button type="submit" class="nav-link logout-link">Logout</button>
+            </form>
         </nav>
     </div>
 </header>

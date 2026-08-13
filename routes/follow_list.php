@@ -1,8 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['user_id'])) { redirect('index.php?page=login'); exit; }
-
-$current_user_id = $_SESSION['user_id'];
+require_login();
+$current_user_id = (int)current_user()['id'];
 $profile_id = isset($_GET['id']) ? (int)$_GET['id'] : $current_user_id;
 $page_type = $_GET['page'] === 'followers' ? 'followers' : 'following';
 

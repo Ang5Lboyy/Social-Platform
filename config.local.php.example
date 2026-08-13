@@ -1,0 +1,16 @@
+<?php
+// Copy this file to config.local.php and fill in your local values.
+// config.local.php is gitignored and must not be committed.
+
+define('GEMINI_API_KEY', 'your_gemini_api_key_here');
+define('GEMINI_MODEL', 'gemini-3.6-flash');
+define('UNSPLASH_ACCESS_KEY', 'your_unsplash_access_key_here');
+
+return [
+    'db' => [
+        'host' => 'localhost',
+        'name' => 'angel_barseghyan2',
+        'user' => 'root',
+        'pass' => '',
+    ],
+];

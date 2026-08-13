@@ -3,12 +3,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id'])) {
-    redirect('index.php?page=login');
-    exit;
-}
+require_login();
 
-$current_user_id = $_SESSION['user_id'];
 $search_query = trim($_GET['q'] ?? '');
 
 $found_users = [];
@@ -50,7 +46,7 @@ if (!empty($search_query)) {
                     SELECT post.*, users.firstname, users.lastname, users.picture 
                     FROM post 
                     JOIN users ON post.user_id = users.id 
-                    WHERE post.deleted IS NULL AND users.deleted IS NULL AND ({$where_clause})
+                    WHERE post.status = 1 AND post.deleted IS NULL AND users.deleted IS NULL AND ({$where_clause})
                     ORDER BY post.created DESC 
                     LIMIT 20
                 ");

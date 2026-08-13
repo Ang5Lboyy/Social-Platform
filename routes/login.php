@@ -48,3 +48,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
     <a href="index.php?page=register" class="auth-link">Don't have an account? Register</a>
 </div>
+
+<?php require __DIR__ . '/../public/footer.php'; ?>

@@ -4,19 +4,15 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id'])) {
-    redirect('index.php?page=login');
-    exit;
-}
-
-$current_user_id = $_SESSION['user_id'];
+require_login();
+$current_user_id = (int)current_user()['id'];
 $post_id = isset($_GET['post_id']) ? (int)$_GET['post_id'] : 0;
 
 $post_stmt = db()->prepare("
     SELECT post.*, users.firstname, users.lastname 
     FROM post 
     JOIN users ON post.user_id = users.id 
-    WHERE post.id = ? AND post.deleted IS NULL AND users.deleted IS NULL
+    WHERE post.id = ? AND post.status = 1 AND post.deleted IS NULL AND users.deleted IS NULL
 ");
 $post_stmt->execute([$post_id]);
 $post = $post_stmt->fetch();
@@ -43,7 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['share_with_user'])) {
 
         $clean_content = $post['content'];
         
-        $post_link = "https://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']) . "/index.php?page=post&id=" . $post['id'];
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $post_link = $scheme . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']) . '/index.php?page=post&id=' . $post['id'];
 
         $message_text = "Shared a post from " . $post['firstname'] . ' ' . $post['lastname'] . ":\n";
         $message_text .= "\"" . mb_substr($clean_content, 0, 60) . "...\"\n\n";

@@ -1,4 +1,12 @@
 <?php
+$is_secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => $is_secure,
+    'httponly' => true,
+    'samesite' => 'Strict',
+]);
 session_start();
 
 require __DIR__ . '/../app/db.php';
@@ -6,11 +14,13 @@ require __DIR__ . '/../app/functions.php';
 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
-header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self';");
 
-$page = $_GET['page'] ?? 'login';
+$page = $_GET['page'] ?? null;
+if ($page === null) {
+    $page = !empty($_SESSION['user_id']) ? 'feed' : 'login';
+}
 $page = preg_replace('/[^a-z_]/', '', $page);
 
 $routes = [

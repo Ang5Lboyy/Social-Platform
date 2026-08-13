@@ -4,12 +4,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id'])) {
-    redirect('index.php?page=login');
-    exit;
-}
-
-$current_user_id = $_SESSION['user_id'];
+require_login();
+$current_user_id = (int)current_user()['id'];
 $post_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($post_id <= 0) {
@@ -22,7 +18,7 @@ try {
         SELECT post.*, users.firstname, users.lastname, users.picture 
         FROM post 
         JOIN users ON post.user_id = users.id 
-        WHERE post.id = ? AND post.deleted IS NULL AND users.deleted IS NULL LIMIT 1
+        WHERE post.id = ? AND post.status = 1 AND post.deleted IS NULL AND users.deleted IS NULL LIMIT 1
     ");
     $stmt->execute([$post_id]);
     $post = $stmt->fetch();

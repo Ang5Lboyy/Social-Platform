@@ -4,12 +4,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id'])) {
-    redirect('index.php?page=login');
-    exit;
-}
-
-$current_user_id = $_SESSION['user_id'];
+require_login();
+$current_user_id = (int)current_user()['id'];
 
 $chat_user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
 

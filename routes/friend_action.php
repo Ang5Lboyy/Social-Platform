@@ -1,10 +1,10 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-if (!isset($_SESSION['user_id'])) { redirect('index.php?page=login'); exit; }
+require_login();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('index.php?page=feed'); exit; }
 if (!csrf_verify()) { flash_set('danger', 'Invalid security token.'); redirect('index.php?page=feed'); exit; }
 
-$current_user_id = $_SESSION['user_id'];
+$current_user_id = (int)current_user()['id'];
 $action = $_POST['action'] ?? '';
 $target_id = (int)($_POST['target_id'] ?? 0);
 
